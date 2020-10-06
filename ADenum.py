@@ -166,7 +166,8 @@ class LdapEnum:
                 now = datetime.datetime.now( )
                 lastChange = now - value
                 if(lastChange.days > 100):
-                    log.warning("User '"+highlightRed(username) +"' password last change: " + highlightRed(str((now - value).days))+" days ago "+ value.strftime('%Y-%m-%d %H:%M:%S'))
+                    log.warning("Username:"+ highlightRed(username)+CreateSpace(username,20)+"Password last change: " + highlightRed(str((now - value).days))+" days ago "+ value.strftime('%Y-%m-%d %H:%M:%S'))
+   
     def GetUserAndDesciption(self):
         OBJECT_TO_SEARCH = '(&(objectCategory=user)(|(description=*pwd*)(description=*password*)))'
         ATTRIBUTES_TO_SEARCH = ['sAMAccountName','description']

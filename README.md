@@ -62,9 +62,6 @@ optional arguments:
 ## Demo 
 [![asciicast](https://asciinema.org/a/362017.png)](https://asciinema.org/a/362017)
 
-
-https://asciinema.org/a/jvY2f3HVaRduqmkbdUloBteWa
-
 ## Microsoft Advanced Threat Analytics
 
 ATA detects two supisous events but does **not** trigger an **alert**:
