@@ -56,17 +56,22 @@ class LdapEnum:
         print("====================================================\n\n")
         
     def __SearchServerLdap(self,OBJECT_TO_SEARCH, ATTRIBUTES_TO_SEARCH):
+        resultSearch = []
+
         try:
             result = self.ldapCon.search_s(self.baseDn, ldap.SCOPE_SUBTREE, OBJECT_TO_SEARCH, ATTRIBUTES_TO_SEARCH) 
-        except ldap.LDAPError as error:
-            log.warning(error)
+            for info in result:
+                if(info[0] != None):
+                    resultSearch.append([info[0],info[1]])
+            if(len(resultSearch) == 0):
+                log.warning("No entry found !")
+        except ldap.OPERATIONS_ERROR as error:
+            log.failure("OPERATIONS_ERROR: "+ str(error))
             exit(0)
-        resultSearch = []
-        for info in result:
-            if(info[0] != None):
-                resultSearch.append([info[0],info[1]])
-        if(len(resultSearch) == 0):
-            log.warning("No entry found !")
+        except ldap.LDAPError as error:
+            log.failure("LDAPError: " + str(error))
+            exit(0)
+
         return resultSearch
 
     # Unix timestamp to the AD one
@@ -78,20 +83,24 @@ class LdapEnum:
 
     def SearchServerLdapUser(self,OBJECT_TO_SEARCH):
         ATTRIBUTES_TO_SEARCH = ['sAMAccountName']
+        resultSearch = []
+
         try:
             result = self.ldapCon.search_s(self.baseDn, ldap.SCOPE_SUBTREE, OBJECT_TO_SEARCH, ATTRIBUTES_TO_SEARCH) 
-        except ldap.LDAPError as error:
-            log.warning(error)
+            for info in result:
+                if(info[0] != None):
+                    baseName = info[0]
+                    username = info[1]["sAMAccountName"][0].decode()
+                    if(username != "krbtgt"):
+                        resultSearch.append([baseName,username])
+            if(len(resultSearch) == 0):
+                log.warning("No entry found !")
+        except ldap.OPERATIONS_ERROR as error:
+            log.failure("OPERATIONS_ERROR: "+ str(error))
             exit(0)
-        resultSearch = []
-        for info in result:
-            if(info[0] != None):
-                baseName = info[0]
-                username = info[1]["sAMAccountName"][0].decode()
-                if(username != "krbtgt"):
-                    resultSearch.append([baseName,username])
-        if(len(resultSearch) == 0):
-            log.warning("No entry found !")
+        except ldap.LDAPError as error:
+            log.failure("LDAPError: " + str(error))
+            exit(0)
         return resultSearch
         
     def ConnectServerLdap(self,ServerName,ipAddress, username, password, isSSL):
@@ -103,7 +112,7 @@ class LdapEnum:
         if(ipAddress == None):
             ipAddress = ResovelIpAddress(ServerName)
             if(ipAddress == None):
-                log.warning("Unable to resolve domain name:  "+ServerName)
+                log.failure("Unable to resolve domain name:  "+ServerName+ " !\n")
                 exit(0)
 
         log.info("IP Address:  "+ipAddress)
@@ -125,21 +134,18 @@ class LdapEnum:
                     password == ''
                 connect.simple_bind_s(username, password)            
         except ldap.INVALID_CREDENTIALS:
-            log.failure('Invalid credentials !')
-            self.ldapCon = None
-            return 
+            log.failure('Invalid credentials !\n')
+            exit(0)
         except ldap.SERVER_DOWN:
-            log.failure("Server down") 
-            self.ldapCon = None
-            return
+            log.failure("Server is down !\n\n") 
+            exit(0)
         except ldap.LDAPError as error:
             if type(error.message) == dict and error.message.has_key('desc'):
-                log.error("Other LDAP error: " + error.message['desc'])
-                return 
+                log.failure("Other LDAP error: " + error.message['desc']+ " !\n")
             else: 
-                log.error("Other LDAP error: " + error)
+                log.failure("Other LDAP error: " + error+ " !\n")
                 self.ldapCon = None
-            return
+            exit(0)
         log.success("Succesfully Authenticated With LDAP")
         self.ldapCon = connect
         return
@@ -399,7 +405,7 @@ class KerbExploit:
 
 def ManageArg():
     parser = argparse.ArgumentParser(description='Pentest tool that detect misconfig in AD with LDAP', usage='%(prog)s -d [domain] -u [username] -p [password]')
-    parser.version = 'EnumAD version: 0.1-Dev'
+    parser.version = 'EnumAD version: 0.1.1-Dev'
 
     parser.add_argument('-d',  metavar=' [domain]', type=str, help='The name of domain (e.g. "test.local")', required=True)
     parser.add_argument('-u',  metavar=' [username]', type=str,help='The user name', default=None)
