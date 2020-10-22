@@ -179,7 +179,7 @@ class LdapEnum:
         for info in result:
             username = info[1]['sAMAccountName'][0].decode()
             description = info[1]['description'][0].decode()
-            print("[i] Username:",highlightRed(username),CreateSpace(username),description)
+            log.info("Username: "+highlightRed(username)+CreateSpace(username)+description)
 
     def GetDomainAdmin(self):
         printTitle("[-] Users who are Domain Admin")
@@ -190,7 +190,7 @@ class LdapEnum:
         for info in result:
             baseName = info[0]
             username = info[1]
-            print("[i] Username:",highlightRed(username),CreateSpace(username), LdapPathColor(baseName))
+            log.info("Username: "+highlightRed(username)+CreateSpace(username)+LdapPathColor(baseName))
 
     def GetDomainControllers(self):
         printTitle("[-] Domain Controllers")
@@ -204,8 +204,8 @@ class LdapEnum:
             ComputerName = info[1]["sAMAccountName"][0].decode()
             ComputerOsName = info[1]["operatingSystem"][0].decode()
             ComputerOsVersion = info[1]["operatingSystemVersion"][0].decode()
-            print("[i] Computer:",highlightRed(ComputerName),CreateSpace(ComputerName),LdapPathColor(baseName))
-            print("\t[v]",ComputerOsName, ComputerOsVersion)
+            log.info("Computer: "+highlightRed(ComputerName)+CreateSpace(ComputerName)+LdapPathColor(baseName))
+            print("\t[V]",ComputerOsName, ComputerOsVersion)
 
     def PasswordNotExpire(self):
         printTitle("[-] Users with Password Not Expire")
@@ -216,7 +216,7 @@ class LdapEnum:
         for info in result:
             baseName = info[0]
             username = info[1]
-            print("[i] Username:",highlightRed(username),CreateSpace(username),LdapPathColor(baseName))
+            log.info("Username: "+highlightRed(username)+CreateSpace(username)+LdapPathColor(baseName))
 
     def UserDefEncrypt(self):
         printTitle("[-] Users with not the default encryption")
@@ -242,7 +242,7 @@ class LdapEnum:
                 algoType = "Password is stored in HMAC-SHA1-96-AES256"
             else: 
                  algoType = "Password is stored in "+str(algoType)+" encryption"
-            print("[i] Username:",highlightRed(username),CreateSpace(username),algoType)
+            log.info("Username: "+highlightRed(username)+CreateSpace(username)+algoType)
         return
         
     def UserNoDelegation(self):
