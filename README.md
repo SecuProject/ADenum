@@ -35,10 +35,12 @@ optional arguments:
 - Impacket (https://github.com/SecureAuthCorp/impacket)
 - John (https://github.com/openwall/john)
 - Python 3 
+- If you are using **debian** or **kali**:
+	- sudo apt-get install libsasl2-dev python-dev libldap2-dev libssl-dev
 - pip3:
 
 	```
-	$ pip install -r requirements.txt
+	$ pip install -r Requirements.txt
 	```
 
 
