@@ -36,14 +36,13 @@ optional arguments:
 - John (https://github.com/openwall/john)
 - Python 3 
 - If you are using **debian** or **kali**:
-	- sudo apt-get install libsasl2-dev python-dev libldap2-dev libssl-dev
+	```bash
+	$ sudo apt-get install libsasl2-dev python-dev libldap2-dev libssl-dev
+	```
 - pip3:
-
+	```bash
+	$ pip3 install -r Requirements.txt
 	```
-	$ pip install -r Requirements.txt
-	```
-
-
 ## Features and Functionality 
 ### LDAP:
 
