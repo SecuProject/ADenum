@@ -1,6 +1,6 @@
 # AD Enum
 
-**AD Enum** is a pentesting tool that allows to find misconfiguration through the the protocol LDAP and exploit some of those weaknesses with kerberos. 
+**AD Enum** is a pentesting tool that allows to find misconfiguration through the protocol LDAP and exploit some of those weaknesses with Kerberos. 
 
 
 ```
@@ -66,8 +66,8 @@ optional arguments:
 
 ## Microsoft Advanced Threat Analytics
 
-ATA detects two supisous events but does **not** trigger an **alert**:
-- The connection in LDAP without SSL
+ATA detects two suspicious events but does **not** trigger an **alert**:
+- The connection with the protocol LDAP without SSL
 - The Kerberoastable attack 
 
 As shown in this screenshot:
