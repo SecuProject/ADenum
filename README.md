@@ -13,7 +13,7 @@
   ╚═╝  ╚═╝╚═════╝     ╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝     ╚═╝
 
 
-usage: EnumADAuth.py -d [domain] -u [username] -p [password]
+usage: ADenum.py -d [domain] -u [username] -p [password]
 
 Pentest tool that detect misconfig in AD with LDAP
 
