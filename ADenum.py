@@ -1,4 +1,4 @@
- from logging import error
+from logging import error
 import ldap
 from ldap import VERSION3 
 from pwn import log 
