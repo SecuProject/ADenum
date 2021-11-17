@@ -61,7 +61,7 @@ optional arguments:
 - Password cracking with john  (krb5tgs and krb5asrep)
 
 ## Demo 
-[![asciicast](https://asciinema.org/a/362017.png)](https://asciinema.org/a/362017)
+[![asciicast](https://asciinema.org/a/362017.svg)](https://asciinema.org/a/362017?autoplay=1)
 
 ## Microsoft Advanced Threat Analytics
 
