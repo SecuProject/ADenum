@@ -457,14 +457,18 @@ def CheckRequierment(userConfig: dict)-> None:
         if(not path.exists(userConfig['wordlistPath'])):
             log.warning("Wordlist '"+userConfig['wordlistPath']+"' not found !")
             exit(1)
-        if(not path.exists(which(userConfig['JohnPath']))):
+        johnPath = userConfig['johnPath']
+        if(johnPath is None or not path.exists(johnPath)):
             log.warning("The command  '"+userConfig['JohnPath']+"' not found !")
             log.info("Link: https://github.com/openwall/john")
             exit(1)
-    if(not path.exists(which('GetUserSPNs.py')) or 
-    not path.exists(which('GetNPUsers.py'))):
+    GetUserSPNsPath = which('GetUserSPNs.py')
+    GetNPUsersPath = which('GetNPUsers.py')
+    if(GetNPUsersPath is None or GetUserSPNsPath is None or 
+        not path.exists(GetUserSPNsPath) or not path.exists(GetNPUsersPath)): 
         log.warning("Impacket must be install to run the tool !")
         log.info("Link: https://github.com/SecureAuthCorp/impacket")
+        exit(1)
 
 
 def MainBanner() -> None:
