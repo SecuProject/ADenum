@@ -469,14 +469,13 @@ def CheckRequirement(userConfig: dict)-> None:
             exit(1)
     GetNPUsersPath = which('GetNPUsers.py')
     GetUserSPNsPath = which('GetUserSPNs.py')
-    if(GetNPUsersPath is not None and GetUserSPNsPath is not None):
-        GetNPUsers = 'GetNPUsers.py'
-        GetUserSPNs = 'GetUserSPNs.py'
-    else:
+    if(GetNPUsersPath is None or GetUserSPNsPath is None):
         GetNPUsersPath = which('impacket-GetNPUsers')
         GetUserSPNsPath = which('impacket-GetUserSPNs')
         if(GetNPUsersPath is not None and GetUserSPNsPath is not None):
+            global GetNPUsers
             GetNPUsers = 'impacket-GetNPUsers'
+            global GetUserSPNs
             GetUserSPNs = 'impacket-GetUserSPNs'
         else:
             log.warning("Impacket must be install to run the tool !")
