@@ -11,8 +11,8 @@ import socket
 from shutil import which
 from os import path
 
-global GetNPUsers
-global GetUserSPNs
+GetNPUsers = 'GetNPUsers.py'
+GetUserSPNs = 'GetUserSPNs.py'
 
 # Style
 class bcolors:
@@ -453,7 +453,7 @@ def ManageArg() -> dict:
             'baseDN' : BASE_DN,
             'wordlistPath' : args.w,
             'isCrackingEnable' : args.j,
-            'JohnPath' : args.jp
+            'johnPath' : args.jp
     }
     return userConfig
 
@@ -462,9 +462,9 @@ def CheckRequirement(userConfig: dict)-> None:
         if(not path.exists(userConfig['wordlistPath'])):
             log.warning("Wordlist '"+userConfig['wordlistPath']+"' not found !")
             exit(1)
-        johnPath = userConfig['johnPath']
+        johnPath = which(userConfig['johnPath'])
         if(johnPath is None or not path.exists(johnPath)):
-            log.warning("The command  '"+userConfig['JohnPath']+"' not found !")
+            log.warning("The command  '"+userConfig['johnPath']+"' not found !")
             log.info("Link: https://github.com/openwall/john")
             exit(1)
     GetNPUsersPath = which('GetNPUsers.py')
@@ -499,7 +499,7 @@ def mainWork(userConfig)-> None:
 
     ldapEnum.StartEnum()
 
-    kerbExploit = KerbExploit(ldapEnum,userConfig['domain'],userConfig['JohnPath'],userConfig['wordlistPath'],userConfig['ipAddress'])
+    kerbExploit = KerbExploit(ldapEnum,userConfig['domain'],userConfig['johnPath'],userConfig['wordlistPath'],userConfig['ipAddress'])
     kerbExploit.StartKerbExploit(userConfig)
 
     ldapEnum.disconnect()
