@@ -40,7 +40,7 @@ def printTitle(msg:str)->None:
 def CreateSpace(varString:str,nbSpace = 25)->str:
     return (nbSpace - int(math.fmod(len(varString),nbSpace))) * ' '
 
-def ResovelIpAddress(ServerName:str)->str:
+def ResolveIpAddress(ServerName:str)->str:
     try:
         data = socket.gethostbyname_ex(ServerName)
         ipAddres = data[2][0]
@@ -64,7 +64,7 @@ def append_to_file(filename:str,date:str) -> bool:
 class LdapEnum:
     def __init__(self, BASE_DN:str)->None:
         self.baseDn = BASE_DN
-        self.ldapVerson = VERSION3
+        self.ldapVersion = VERSION3
 
     def __BannerLDAP(self)->None:
         print("\n====================================================")
@@ -126,7 +126,7 @@ class LdapEnum:
         else:
             log.info("Username:    "+username)
         if(ipAddress == None):
-            ipAddress = ResovelIpAddress(ServerName)
+            ipAddress = ResolveIpAddress(ServerName)
             if(ipAddress == None):
                 log.failure("Unable to resolve domain name:  "+ServerName+ " !\n")
                 exit(0)
@@ -141,7 +141,7 @@ class LdapEnum:
             log.info("SSL connect: "+highlightRed("FALSE"))
         print()
 
-        connect.protocol_version = self.ldapVerson
+        connect.protocol_version = self.ldapVersion
         try:
             if(username == None and password == None):
                 connect.simple_bind_s('', '')
@@ -185,7 +185,7 @@ class LdapEnum:
                 if(lastChange.days > 100):
                     log.warning("Username: "+ highlightRed(username)+CreateSpace(username)+"Password last change: " + highlightRed(str((now - value).days))+" days ago "+ value.strftime('%Y-%m-%d %H:%M:%S'))
    
-    def GetUserAndDesciption(self)->None:
+    def GetUserAndDescription(self)->None:
         printTitle("[-] Users with an interesting description")
 
         OBJECT_TO_SEARCH = '(&(objectCategory=user)(|(description=*pwd*)(description=*password*)))'
@@ -272,7 +272,7 @@ class LdapEnum:
             username = info[1]
             log.info("Username: " + highlightRed(username) + CreateSpace(username) +LdapPathColor(baseName))
             
-    def deconnect(self)->None:
+    def disconnect(self)->None:
         self.ldapCon.unbind() 
 
     def StartEnum(self)->None:
@@ -282,7 +282,7 @@ class LdapEnum:
         self.GetDomainControllers()
         self.PasswordNotExpire()
         self.UserOldPassword()
-        self.GetUserAndDesciption()
+        self.GetUserAndDescription()
         self.UserDefEncrypt()
         self.UserNoDelegation()
 
@@ -307,10 +307,10 @@ class KerbExploit:
         process =  subprocess.run(argProcess, check=True, stdout=subprocess.PIPE)
         return process.stdout.decode().splitlines()
 
-    def RunJohn(self,filenName:str, algoType:str)-> bool:
+    def RunJohn(self,fileName:str, algoType:str)-> bool:
         isSuccess = False
-        progress = log.progress("Cracking hash from file: " + highlightRed(filenName))
-        process =  subprocess.run((self.johnPath, filenName,algoType, "--wordlist=" + self.wordlistPath), check=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) 
+        progress = log.progress("Cracking hash from file: " + highlightRed(fileName))
+        process =  subprocess.run((self.johnPath, fileName,algoType, "--wordlist=" + self.wordlistPath), check=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) 
 
         if('krb5asrep' in algoType):
             regexHashUser = r"(.*[^\s-])\s+\(\$krb5\w+\$23\$(\w+-?\w+)@.+\.\w+\)"
@@ -325,11 +325,11 @@ class KerbExploit:
             if(x is not None):
                 if('krb5asrep' in algoType):
                     print("",end='\t')
-                    log.success("Cread Found: '" + highlightGreen(x.group(2))+":"+ highlightGreen(x.group(1))+"'")
+                    log.success("Credential Found: '" + highlightGreen(x.group(2))+":"+ highlightGreen(x.group(1))+"'")
                     isSuccess = True
                 elif('krb5tgs' in algoType):
                     print("",end='\t')
-                    log.success("Cread Found: '" + highlightGreen(x.group(1))+"'")
+                    log.success("Credential Found: '" + highlightGreen(x.group(1))+"'")
                     isSuccess = True
                 else:
                     log.warning('Fail get hash !')
@@ -456,7 +456,7 @@ def ManageArg() -> dict:
     }
     return userConfig
 
-def CheckRequierment(userConfig: dict)-> None:
+def CheckRequirement(userConfig: dict)-> None:
     if(userConfig['isCrackingEnable']):
         if(not path.exists(userConfig['wordlistPath'])):
             log.warning("Wordlist '"+userConfig['wordlistPath']+"' not found !")
@@ -501,12 +501,12 @@ def mainWork(userConfig)-> None:
     kerbExploit = KerbExploit(ldapEnum,userConfig['domain'],userConfig['JohnPath'],userConfig['wordlistPath'],userConfig['ipAddress'])
     kerbExploit.StartKerbExploit(userConfig)
 
-    ldapEnum.deconnect()
+    ldapEnum.disconnect()
 
 if __name__ == '__main__':
     MainBanner()
     userConfig= ManageArg()
-    CheckRequierment(userConfig)
+    CheckRequirement(userConfig)
     mainWork(userConfig)
     print("")
     exit(0)
