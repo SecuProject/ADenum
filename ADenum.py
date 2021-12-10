@@ -142,6 +142,7 @@ class LdapEnum:
         print()
 
         connect.protocol_version = self.ldapVersion
+        connect.set_option(ldap.OPT_REFERRALS, 0)
         try:
             if(username == None and password == None):
                 connect.simple_bind_s('', '')
