@@ -34,6 +34,8 @@ def highlightGreen(msg:str)->str:
     return bcolors.OKGREEN + msg + bcolors.ENDC
 def highlightRed(msg:str)->str:
     return bcolors.FAIL + msg + bcolors.ENDC
+def highlightWARNING(msg:str)->str:
+    return bcolors.WARNING + msg + bcolors.ENDC
 def StyleBold(msg:str)->str:
     return bcolors.BOLD + msg + bcolors.ENDC
 
@@ -82,7 +84,7 @@ class LdapEnum:
         resultSearch = []
 
         try:
-            result = self.ldapCon.search_s(self.baseDn, ldap.SCOPE_SUBTREE, OBJECT_TO_SEARCH, ATTRIBUTES_TO_SEARCH) 
+            result = self.ldapCon.search_s(self.baseDn, ldap.SCOPE_SUBTREE , OBJECT_TO_SEARCH, ATTRIBUTES_TO_SEARCH) 
             for info in result:
                 if(info[0] != None):
                     resultSearch.append([info[0],info[1]])
@@ -152,39 +154,98 @@ class LdapEnum:
         return LoginError.NO_ERROR
 
     def ConnectServerLdap(self,domain_name:str,ip_address:str, username:str, password:str, is_SSL:bool)->None:
-        log.info("Domain name: "+domain_name)
+        log.info("Domain name:\t"+domain_name)
         if(username == None):
-            log.info("Username:    "+StyleBold("Anonymous"))
+            log.info("Username:\t   "+StyleBold("Anonymous"))
         else:
-            log.info("Username:    "+username)
+            log.info("Username:\t   "+username)
         if(ip_address == None):
             ip_address = ResolveIpAddress(domain_name)
             if(ip_address == None):
                 log.failure("Unable to resolve domain name:  "+domain_name+ " !\n")
                 exit(0)
 
-        log.info("IP Address:  "+ip_address)
+        log.info("IP Address:\t "+ip_address)
         if(is_SSL):
             ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
             connect = ldap.initialize('ldaps://' + ip_address)
             connect.start_tls_s()
-            log.info("SSL connect: "+highlightGreen("TRUE"))
+            log.info("SSL connect:\t"+highlightGreen("TRUE"))
+            # TODO:
+            # con.get_option(ldap.OPT_X_TLS_CIPHER)
+            # con.get_option(ldap.OPT_X_TLS_CIPHER_SUITE)
+            # con.get_option(ldap.OPT_X_TLS_PROTOCOL_MIN) # -> 0x303 for TLS 1.2 / 0x304 for TLS 1.3
+            # con.get_option(ldap.OPT_X_TLS_VERSION)
         else:
             connect = ldap.initialize('ldap://' + ip_address)
-            log.info("SSL connect: "+highlightRed("FALSE"))
+            if(connect.get_option(ldap.OPT_X_TLS_DEMAND)):
+                log.info("SSL supported:  "+highlightGreen("TRUE"))
+            else:
+                log.warning("SSL supported:  "+highlightRed("FALSE"))
+                
+            log.warn("SSL connect:\t"+highlightRed("FALSE"))
         print()
 
         connect.protocol_version = self.ldapVersion
         connect.set_option(ldap.OPT_REFERRALS, 0)
         
-        if(self.LoginLdap(connect, username, password,True) == LoginError.INVALID_CREDENTIALS):
+        is_auth = self.LoginLdap(connect, username, password,True)
+        if(is_auth == LoginError.INVALID_CREDENTIALS):
             if(self.LoginLdap(connect, username+'@'+domain_name, password,False) != LoginError.NO_ERROR):
                 exit(0)
+        elif(is_auth is not LoginError.NO_ERROR):
+            exit(0)
 
         log.success("Succesfully Authenticated With LDAP")
         self.ldapCon = connect
         return
-
+    def GetAuthMech(self):
+        printTitle("[-] Authentication mechanism")
+        OBJECT_TO_SEARCH = '(objectclass=*)'
+        ATTRIBUTES_TO_SEARCH = ['supportedSASLMechanisms']
+        
+        result = self.ldapCon.search_s("",ldap.SCOPE_BASE,OBJECT_TO_SEARCH,ATTRIBUTES_TO_SEARCH)
+        list_auth_mec = result[0][1]['supportedSASLMechanisms']
+        for auth_mec in list_auth_mec:
+            auth_mec = auth_mec.decode('utf-8')
+            
+            
+            if(auth_mec == "DIGEST-MD5"):
+                log.warning(StyleBold(StyleBold(auth_mec)+"\t\t\t\t\t\t ")+highlightWARNING("Consider as weak security protocols"))
+                log.failure(StyleBold("LOGIN")+"\t\t\t\t\t\t\t  "+highlightRed("Plaintext password"))
+                log.failure(StyleBold("PLAIN")+"\t\t\t\t\t\t\t  "+highlightRed("Plaintext password"))
+            elif(auth_mec == "NTLM"):
+                log.warning(StyleBold(auth_mec)+"\t\t\t\t\t\t\t   "+highlightWARNING("Consider as weak security protocols"))
+            elif(auth_mec == "CRAM-MD5"):
+                log.warning(StyleBold(auth_mec)+"\t\t\t\t\t\t\t   "+highlightWARNING("Consider as weak security protocols"))
+            
+            elif(auth_mec == "ANONYMOUS"):
+                log.warning(StyleBold(auth_mec))
+            
+            
+            # 
+            elif(auth_mec == "LOGIN"):
+                log.failure(StyleBold(auth_mec)+"\t\t\t\t\t\t\t  "+highlightRed("Plaintext password"))
+            elif(auth_mec == "PLAIN"):
+                log.failure(StyleBold(auth_mec)+"\t\t\t\t\t\t\t  "+highlightRed("Plaintext password"))
+            
+            
+            # Uses Kerberos tickets to authenticate to the server
+            elif(auth_mec == "GSSAPI"):
+                log.success(auth_mec)
+            elif(auth_mec == "GSS-SPNEGO"):
+                log.success(auth_mec)
+                
+                
+            # Uses the TLS certification mechanism to authenticate users.
+            elif(auth_mec == "EXTERNAL"):
+                log.success(auth_mec)
+                
+            else:
+                log.info(auth_mec)  # NMAS_LOGIN,SPNEGO,OTP
+            
+            
+            
     def UserOldPassword(self)->None:
         printTitle("[-] Users with old password")
 
@@ -305,6 +366,8 @@ class LdapEnum:
         self.ldapCon.unbind() 
 
     def StartEnum(self)->None:
+        self.GetAuthMech()
+        
         self.__BannerLDAP()
 
         self.GetDomainAdmin()
