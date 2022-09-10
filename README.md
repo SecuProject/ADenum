@@ -64,6 +64,7 @@ options:
 - Enum Domain users with interesting description
 - Enum Domain users with not the default encryption
 - Enum Domain users with Protecting Privileged Domain Accounts
+- Enum Domain users with not default object Attributes
 
 ### Kerberos
 
@@ -72,6 +73,7 @@ options:
 - Password cracking with john  (krb5tgs and krb5asrep)
 
 ## Demo
+
 [![asciicast](https://asciinema.org/a/362017.svg)](https://asciinema.org/a/362017?autoplay=1)
 
 ## Microsoft Advanced Threat Analytics
