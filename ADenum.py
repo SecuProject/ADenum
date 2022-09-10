@@ -331,6 +331,7 @@ class LdapEnum:
             "company",
             "countryCode",
             "description",
+            "displayName",
             "distinguishedName",
             "dn",
             "dSCorePropagationData",
@@ -353,6 +354,7 @@ class LdapEnum:
             "st",
             "streetAddress",
             "userAccountControl",
+            "userPrincipalName",
             "uSNChanged",
             "uSNCreated",
             "whenChanged",
@@ -372,6 +374,7 @@ class LdapEnum:
         OBJECT_TO_SEARCH = '(objectcategory=user)'
         ATTRIBUTES_TO_SEARCH = ["*"]
         
+        nb_detection = 0
         result = self.__SearchServerLdap(OBJECT_TO_SEARCH,ATTRIBUTES_TO_SEARCH)
         for info in result:
             for list_current_object in info[1]:
@@ -382,7 +385,9 @@ class LdapEnum:
                         else:
                             object_value = ascii(info_encode)
                         log.warning(f"{info[0]:45s}->\t{StyleBold(list_current_object)}: {object_value}\n\n")
-
+                        nb_detection += 1
+        if(nb_detection == 0):
+            log.warning("No entry found !")
     def UserDefEncrypt(self)->None:
         printTitle("[-] Users with not the default encryption")
 
@@ -599,10 +604,15 @@ class KerbExploit:
 
         if((config_ASREP['isHashFound'] or config_file_kerb['isHashFound']) and user_config['baseDN']):
             printTitle("[-] Starting to crack hashs")
+            is_result = False
             if(config_ASREP['isHashFound'] and user_config['isCrackingEnable']):
                 self.RunJohn(config_ASREP['ouputFile'], config_ASREP['formatHash'])
+                is_result = True
             if(config_file_kerb['isHashFound'] and user_config['isCrackingEnable']):
                 self.RunJohn(config_file_kerb['ouputFile'], config_file_kerb['formatHash'])
+                is_result = True
+            if(not is_result):
+                log.warning("No entry found !")
 
 def ManageArg() -> dict:
     parser = argparse.ArgumentParser(description='Pentest tool that detect misconfig in AD with LDAP', usage='%(prog)s -d [domain] -u [username] -p [password]')
