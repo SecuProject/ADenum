@@ -1,4 +1,4 @@
-from logging import error
+#from logging import error
 import ldap
 from ldap import VERSION3 
 from pwn import log 
@@ -199,6 +199,7 @@ class LdapEnum:
         log.success("Succesfully Authenticated With LDAP")
         self.ldapCon = connect
         return
+    
     def GetAuthMech(self):
         printTitle("[-] Authentication mechanism")
         OBJECT_TO_SEARCH = '(objectclass=*)'
@@ -243,9 +244,7 @@ class LdapEnum:
                 
             else:
                 log.info(auth_mec)  # NMAS_LOGIN,SPNEGO,OTP
-            
-            
-            
+                  
     def UserOldPassword(self)->None:
         printTitle("[-] Users with old password")
 
@@ -314,6 +313,76 @@ class LdapEnum:
             username = info[1]
             log.info("Username: "+highlightRed(username)+CreateSpace(username)+LdapPathColor(baseName))
 
+
+    '''
+    The list `list_default_object` might need to be update
+    Might need to check if return value is None
+    '''
+    def DetectNotDefaultAttributes(self)->None:
+        printTitle("[-] Not Default Attributes (TEST IN BETA)\n")
+
+        list_default_object = [
+            "accountExpires",
+            "badPasswordTime",
+            "badPwdCount",
+            "c",
+            "cn",
+            "codePage",
+            "company",
+            "countryCode",
+            "description",
+            "distinguishedName",
+            "dn",
+            "dSCorePropagationData",
+            "instanceType",
+            "l",
+            "lastLogoff",
+            "lastLogon",
+            "logonCount",
+            "memberOf",
+            "name",
+            "objectCategory",
+            "objectClass",
+            "objectGUID",
+            "objectSid",
+            "postalCode",
+            "primaryGroupID",
+            "pwdLastSet",
+            "sAMAccountName",
+            "sAMAccountType",
+            "st",
+            "streetAddress",
+            "userAccountControl",
+            "uSNChanged",
+            "uSNCreated",
+            "whenChanged",
+            "givenName",
+            "mail",
+            "sn",
+            "lastLogonTimestamp",
+            "adminCount",
+            "showInAdvancedViewOnly",
+            "logonHours",
+            "isCriticalSystemObject",
+            "msDS-SupportedEncryptionTypes",
+            "servicePrincipalName",
+            "whenCreated"
+        ]
+        
+        OBJECT_TO_SEARCH = '(objectcategory=user)'
+        ATTRIBUTES_TO_SEARCH = ["*"]
+        
+        result = self.__SearchServerLdap(OBJECT_TO_SEARCH,ATTRIBUTES_TO_SEARCH)
+        for info in result:
+            for list_current_object in info[1]:
+                if(list_current_object not in list_default_object):
+                    for info_encode in info[1][list_current_object]:
+                        if(info_encode.isascii()):
+                            object_value = info_encode.decode()
+                        else:
+                            object_value = ascii(info_encode)
+                        log.warning(f"{info[0]:45s}->\t{StyleBold(list_current_object)}: {object_value}\n\n")
+
     def UserDefEncrypt(self)->None:
         printTitle("[-] Users with not the default encryption")
 
@@ -369,7 +438,6 @@ class LdapEnum:
         self.GetAuthMech()
         
         self.__BannerLDAP()
-
         self.GetDomainAdmin()
         self.GetDomainControllers()
         self.PasswordNotExpire()
@@ -377,6 +445,7 @@ class LdapEnum:
         self.GetUserAndDescription()
         self.UserDefEncrypt()
         self.UserNoDelegation()
+        self.DetectNotDefaultAttributes()
         self.GetLapsPassword()
 
 class KerbExploit:
